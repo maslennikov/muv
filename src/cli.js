@@ -12,7 +12,7 @@ import Promise from 'bluebird'
 const cli = meow(
   `
   Usage
-    $ knex-migrate <command> [options]
+    $ muv <command> [options]
 
   Commands
     pending   Lists all pending migrations
@@ -37,14 +37,14 @@ const cli = meow(
   As a convenience, you can skip --to flag, and just provide migration name.
 
   Examples
-    $ knex-migrate up                  # migrate everytings
-    $ knex-migrate up 20160905         # migrate upto given migration name
-    $ knex-migrate up --to 20160905    # the same as above
-    $ knex-migrate up --only 201609085 # migrate up single migration
-    $ knex-migrate down --to 0         # rollback all migrations
-    $ knex-migrate down                # rollback single migration
-    $ knex-migrate rollback            # rollback previous "up"
-    $ knex-migrate redo --verbose      # rollback and migrate everything
+    $ muv up                  # migrate everytings
+    $ muv up 20160905         # migrate upto given migration name
+    $ muv up --to 20160905    # the same as above
+    $ muv up --only 201609085 # migrate up single migration
+    $ muv down --to 0         # rollback all migrations
+    $ muv down                # rollback single migration
+    $ muv rollback            # rollback previous "up"
+    $ muv redo --verbose      # rollback and migrate everything
  `,
   {
     alias: {
