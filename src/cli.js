@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 
-import {resolve, dirname, isAbsolute} from 'path'
-import {existsSync} from 'fs'
-import reqFrom from 'req-from'
 import meow from 'meow'
-import Umzug from 'umzug'
-import {maxBy, minBy, filter, omitBy, isNil} from 'lodash'
+import _ from 'lodash'
 import * as prettyjson from 'prettyjson'
 import Promise from 'bluebird'
+import Migrator from '.'
+
 
 const cli = meow(
   `
@@ -25,7 +23,6 @@ const cli = meow(
   Options for "up" and "down":
     --to, -t    Migrate upto (downto) specific version
     --from, -f  Start migration from specific version
-    --only, -o  Migrate only specific version
 
   Global options:
     --cwd         Specify the working directory
@@ -56,136 +53,34 @@ const cli = meow(
   }
 )
 
-function normalizeFlags (flags) {
-  if (isAbsolute(flags.knexfile || '') && !flags.cwd) {
-    flags.cwd = dirname(flags.knexfile)
-  }
-
-  if (isAbsolute(flags.migrations || '') && !flags.cwd) {
-    flags.cwd = dirname(flags.migrations)
-  }
-
-  flags.cwd = flags.cwd || process.cwd()
-  flags.knexfile = flags.knexfile || 'knexfile.js'
-
-  flags.knexfile = resolve(flags.cwd, flags.knexfile)
-
-  flags.env =
-    flags.env || process.env.KNEX_ENV || process.env.NODE_ENV || 'development'
-}
-
-function knexInit (flags) {
-  normalizeFlags(flags)
-
-  const knex = reqFrom.silent(flags.cwd, 'knex')
-
-  if (isNil(knex)) {
-    console.error(`Knex not found in '${flags.cwd}'`)
-    console.error(
-      "Please install it as local dependency with 'npm install --save knex'"
-    )
+main().then(
+  () => {
+    process.exit(0)
+  },
+  err => {
+    if (cli.flags.verbose) {
+      console.error(err.stack)
+    } else {
+      console.error(err.message)
+    }
     process.exit(1)
   }
-
-  let config
-
-  try {
-    config = require(flags.knexfile)
-  } catch (err) {
-    if (/Cannot find module/.test(err.message)) {
-      console.error(`No knexfile at '${flags.knexfile}'`)
-      console.error("Please create one or bootstrap using 'knex init'")
-      process.exit(1)
-    }
-
-    throw err
-  }
-
-  if (config[flags.env] && config[flags.env]) {
-    config = config[flags.env]
-  }
-
-  if (typeof config !== 'object') {
-    console.log(`Malformed knexfile.js:`)
-    console.log(JSON.stringify(config, null, 2))
-    process.exit(1)
-  }
-
-  flags.migrations =
-    flags.migrations ||
-    (config.migrations && config.migrations.directory) ||
-    'migrations'
-  flags.migrations = resolve(flags.cwd, flags.migrations)
-
-  if (!existsSync(flags.migrations)) {
-    console.error(`No migrations directory at '${flags.migrations}'`)
-    console.error(
-      "Please create your first migration with 'knex migrate:make <name>'"
-    )
-    process.exit(1)
-  }
-
-  if (flags.verbose) {
-    const environment = Object.assign({}, flags, {config})
-    console.log(prettyjson.render(environment, {noColor: true}))
-  }
-
-  return knex(config)
-}
-
-function umzugKnex (connection) {
-  return new Umzug({
-    storage: resolve(__dirname, 'storage'),
-    storageOptions: {connection},
-    migrations: {
-      params: [connection, Promise],
-      path: cli.flags.migrations,
-      pattern: /^\d+[\w-_]+\.js$/,
-      wrap: fn => (knex, Promise) =>
-        knex.transaction(tx => Promise.resolve(fn(tx, Promise)))
-    }
-  })
-}
-
-function help () {
-  console.log(cli.help)
-  process.exit(1)
-}
-
-function umzugOptions () {
-  if (isNil(cli.flags.to) && !isNil(cli.input[1])) {
-    cli.flags.to = cli.input[1]
-  }
-
-  if (isNil(cli.flags.to) && isNil(cli.flags.from)) {
-    if (isNil(cli.flags.only)) {
-      return {}
-    }
-
-    return cli.flags.only
-  }
-
-  if (cli.flags.to === '0') {
-    cli.flags.to = 0
-  }
-
-  if (cli.flags.from === '0') {
-    cli.flags.from = 0
-  }
-
-  return omitBy({to: cli.flags.to, from: cli.flags.from}, isNil)
-}
+)
 
 async function main () {
   if (cli.input.length < 1 && !cli.flags.list) {
     help()
   }
 
-  const umzug = umzugKnex(knexInit(cli.flags))
+  const flags = normalizedFlags(cli)
+  const migrator = new Migrator(flags)
 
-  await umzug.storage.ensureTable()
+  if (migrator.options.verbose) {
+    console.log(prettyjson.render(migrator.options, {noColor: true}))
+  }
 
-  const api = createApi(process.stdout, umzug)
+  await migrator.init()
+  const api = createApi(process.stdout, migrator)
 
   const command = cli.input[0]
 
@@ -197,10 +92,10 @@ async function main () {
       await api.pending()
       break
     case 'down':
-      await api.down(umzugOptions())
+      await api.down()
       break
     case 'up':
-      await api.up(umzugOptions())
+      await api.up()
       break
     case 'rollback':
       await api.rollback()
@@ -213,54 +108,76 @@ async function main () {
   }
 }
 
-function createApi (stdout, umzug) {
+function normalizedFlags({flags, input}) {
+  var normalized = {...flags}
+
+  if (_.isNil(flags.to) && !_.isNil(input[1])) {
+    normalized.to = cli.input[1]
+  }
+
+  if (flags.to === '0') {
+    normalized.to = 0
+  }
+
+  if (flags.from === '0') {
+    normalized.from = 0
+  }
+
+  return normalized
+}
+
+function help () {
+  console.log(cli.help)
+  process.exit(1)
+}
+
+function createApi (stdout, migrator) {
   const debug = createDebug(stdout)
 
-  umzug
+  migrator._umzug
     .on('migrating', debug('migrate'))
     .on('reverting', debug('revert'))
     .on('debug', debug('debug'))
 
   const api = {
     history: () => {
-      return umzug.storage.executed().then(lines => {
+      return migrator._umzug.storage.executed().then(lines => {
         stdout.write(`${lines.join('\n')}\n`)
       })
     },
     pending: () => {
-      return umzug.pending().then(migrations => {
+      return migrator._umzug.pending().then(migrations => {
         stdout.write(`${migrations.map(mig => mig.file).join('\n')}\n`)
       })
     },
     rollback: async () => {
-      return umzug.storage.migrations().then(async migrations => {
+      return migrator._umzug.storage.migrations().then(async migrations => {
         if (migrations.length === 0) {
-          return
+          return null
         }
 
-        const maxBatch = maxBy(migrations, 'batch').batch
-        const lastBatch = filter(migrations, {batch: maxBatch})
-        const firstFromBatch = minBy(lastBatch, 'migration_time')
+        const maxBatch = _.maxBy(migrations, 'batch').batchb
+        const lastBatch = _.filter(migrations, {batch: maxBatch})
+        const firstFromBatch = _.minBy(lastBatch, 'migration_time')
 
-        return updown(stdout, umzug, 'down')({to: firstFromBatch.name})
+        return updown(stdout, migrator, 'down')({to: firstFromBatch.name})
       })
     },
     redo: async () => {
       await api.rollback()
       await api.up()
     },
-    up: updown(stdout, umzug, 'up'),
-    down: updown(stdout, umzug, 'down'),
-    execute: updown(stdout, umzug, 'execute')
+    up: updown(stdout, migrator, 'up'),
+    down: updown(stdout, migrator, 'down')
   }
 
   return api
 }
 
-function updown (stdout, umzug, type) {
-  return opts => {
-    return umzug[type](opts)
-  }
+function updown (stdout, migrator, type) {
+  return migrator._umzug[type](_.omitBy(_.pick(
+    migrator.options, 'to', 'from'
+  ), _.isNil))
 }
 
 function createDebug (stdout) {
@@ -276,17 +193,3 @@ function createDebug (stdout) {
     }
   }
 }
-
-main().then(
-  () => {
-    process.exit(0)
-  },
-  err => {
-    if (cli.flags.verbose) {
-      console.error(err.stack)
-    } else {
-      console.error(err.message)
-    }
-    process.exit(1)
-  }
-)
