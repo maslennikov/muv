@@ -79,7 +79,7 @@ module.exports = class KnexStorage {
       this.lastMigration('migration'),
       this.lastMigration('baseline'),
     ]).then(migrations => {
-      return _.maxBy(_.compact(_.flatten(migrations)), 'name')
+      return _.last(_.compact(migrations).sort(this.compareVersions))
     })
   }
 
@@ -89,7 +89,7 @@ module.exports = class KnexStorage {
       .then(m => m[0])
   }
 
-  compareVersions(m1, m2) {
+  compareVersions(m1={name: ''}, m2={name: ''}) {
     return m1.name > m2.name ? 1
          : m1.name < m2.name ? -1
          : 0

@@ -146,9 +146,8 @@ function createApi (stdout, migrator) {
       })
     },
     pending: () => {
-      return migrator._umzug.pending().then(migrations => {
-        stdout.write(`${migrations.map(mig => mig.file).join('\n')}\n`)
-      })
+      return migrator.pending()
+        .then(migrations => stdout.write(`${migrations.join('\n')}\n`))
     },
     rollback: async () => {
       return migrator._storage.migrations().then(async migrations => {

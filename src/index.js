@@ -19,6 +19,29 @@ export default class Migrator {
     return this._umzug.storage.init()
   }
 
+  /**
+   * @returns {Promise.<String[]>} migration names that will run upon 'up' call
+   */
+  async pending() {
+    var [pending, current, baseline] = await Promise.all([
+      this._umzug.pending(),
+      this._storage.currentVersion(),
+      this._storage.lastMigration('baseline')
+    ])
+
+    pending = _.map(pending, m => ({name: m.file}))
+
+    //dropping those below baseline
+    pending = _.filter(pending, m => this._storage.compareVersions(m, baseline) > 0)
+
+    //integrity check
+    if (_.some(pending, m => this._storage.compareVersions(m, current) <= 0)) {
+      throw new Error(`Pending migrations must be higher than ${current}`)
+    }
+
+    return _.map(pending, 'name')
+  }
+
   _initConnection() {
     const knex = reqFrom.silent(this.options.cwd, 'knex')
     if (_.isNil(knex)) {
