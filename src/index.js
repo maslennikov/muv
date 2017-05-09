@@ -25,8 +25,8 @@ export default class Migrator {
   async pending() {
     var [pending, current, baseline] = await Promise.all([
       this._umzug.pending(),
-      this._storage.currentVersion(),
-      this._storage.lastMigration('baseline')
+      this.currentVersion(),
+      this.currentBaseline()
     ])
 
     pending = _.map(pending, m => ({name: m.file}))
@@ -40,6 +40,21 @@ export default class Migrator {
     }
 
     return _.map(pending, 'name')
+  }
+
+  async currentVersion() {
+    var migration = await this._storage.currentVersion()
+    return _.get(migration, 'name')
+  }
+
+  async currentBaseline() {
+    var migration = await this._storage.lastMigration('baseline')
+    return _.get(migration, 'name')
+  }
+
+  async executed(type='migration') {
+    return this._storage.migrations(type).then(
+      migrations => _.map(migrations, 'name'))
   }
 
   _initConnection() {

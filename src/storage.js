@@ -90,6 +90,9 @@ module.exports = class KnexStorage {
   }
 
   compareVersions(m1={name: ''}, m2={name: ''}) {
+    m1 = _.isString(m1) ? {name: m1} : m1
+    m2 = _.isString(m2) ? {name: m2} : m2
+
     return m1.name > m2.name ? 1
          : m1.name < m2.name ? -1
          : 0

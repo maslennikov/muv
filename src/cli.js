@@ -88,24 +88,27 @@ async function main () {
   const command = cli.input[0]
 
   switch (command) {
+    case 'schema-version':
+      await api.schemaVersion()
+      break
     case 'list':
       await api.history()
       break
     case 'pending':
       await api.pending()
       break
-    case 'down':
-      await api.down()
-      break
-    case 'up':
-      await api.up()
-      break
-    case 'rollback':
-      await api.rollback()
-      break
-    case 'redo':
-      await api.redo()
-      break
+    // case 'down':
+    //   await api.down()
+    //   break
+    // case 'up':
+    //   await api.up()
+    //   break
+    // case 'rollback':
+    //   await api.rollback()
+    //   break
+    // case 'redo':
+    //   await api.redo()
+    //   break
     default:
       console.log(cli.help)
   }
@@ -135,22 +138,31 @@ function help () {
 }
 
 function createApi (stdout, migrator) {
-  const debug = createDebug(stdout)
+  const printer = printerFactory(stdout)
+  const print = printer()
 
   migrator._umzug
-    .on('migrating', debug('migrate'))
-    .on('reverting', debug('revert'))
-    .on('debug', debug('debug'))
+    .on('migrating', printer('migrate'))
+    .on('reverting', printer('revert'))
+    .on('debug', printer('debug'))
 
   const api = {
+    schemaVersion: () => {
+      return Promise.all([
+        migrator.currentVersion(),
+        migrator.currentBaseline()
+      ]).then(([v, b]) => {
+        print(`Schema version ${v || '0'} ${b ? `(baseline ${b})` : ''}`)
+      })
+    },
     history: () => {
-      return migrator._storage.executed().then(lines => {
-        stdout.write(`${lines.join('\n')}\n`)
+      return migrator.executed('migration').then(lines => {
+        print(`${lines.join('\n')}`)
       })
     },
     pending: () => {
       return migrator.pending()
-        .then(migrations => stdout.write(`${migrations.join('\n')}\n`))
+        .then(migrations => print(`${migrations.join('\n')}`))
     },
     rollback: async () => {
       return migrator._storage.migrations().then(async migrations => {
@@ -182,7 +194,7 @@ function updown (stdout, migrator, type) {
   ), _.isNil))
 }
 
-function createDebug (stdout) {
+function printerFactory (stdout) {
   return function debug (type) {
     return function (message) {
       if (type === 'migrate') {
