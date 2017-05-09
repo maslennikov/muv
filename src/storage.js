@@ -1,71 +1,97 @@
 import invariant from 'invariant'
-import {get} from 'lodash'
+import _ from 'lodash'
 
-function tableDoesNotExist (err, table) {
-  return (
-    new RegExp(`relation "${table}" does not exist`).test(err.message) ||
-    new RegExp(`no such table: ${table}`).test(err.message)
-  )
-}
 
 module.exports = class KnexStorage {
   constructor (options) {
     this.knex = options.storageOptions.connection
-    this.tableName = get(
+    this.tableName = _.get(
       this.knex,
       'client.config.migrations.tableName',
-      'knex_migrations'
+      '_migrations'
     )
     invariant(
-      this.knex,
-      "The option 'options.storageOptions.connection' is required."
+      this.knex, "The option 'options.storageOptions.connection' is required."
     )
   }
 
-  ensureTable () {
-    return this.knex(this.tableName).count('id').catch(err => {
-      if (tableDoesNotExist(err, this.tableName)) {
-        return this.knex.schema.createTable(this.tableName, table => {
-          table.increments()
-          table.string('name')
-          table.integer('batch')
-          table.dateTime('migration_time')
-        })
-      }
+  init() {
+    return this._ensureTable()
+  }
 
-      throw err
+  _query() {
+    return this.knex(this.tableName)
+  }
+
+  _ensureTable() {
+    return this.knex.schema.createTableIfNotExists(this.tableName, table => {
+      table.increments()
+      table.enum('type', ['migration', 'baseline'])
+      table.string('name')
+      table.integer('batch')
+      table.dateTime('migration_time')
     })
   }
 
-  async logMigration (migrationName) {
-    if (typeof this.currentBatch === 'undefined') {
-      this.currentBatch = this.getCurrentBatch()
+  async logMigration(name, type='migration') {
+    if (typeof this._currentBatchP === 'undefined') {
+      this._currentBatchP = this.currentBatch()
     }
 
-    const currentBatch = await this.currentBatch
+    const currentBatch = await this._currentBatchP
 
-    return this.knex(this.tableName).insert({
-      name: migrationName,
+    return this._query().insert({
+      type,
+      name,
       batch: currentBatch + 1,
-      migration_time: new Date() // eslint-disable-line camelcase
+      migration_time: new Date()
     })
   }
 
-  unlogMigration (migrationName) {
-    return this.knex(this.tableName).where('name', migrationName).del()
+  unlogMigration(name) {
+    return this._query().where({type: 'migration', name}).del()
   }
 
-  migrations () {
-    return this.knex(this.tableName).select().orderBy('id', 'asc')
+  migrations(type='migration') {
+    return this._query().where({type}).orderBy('id', 'asc')
   }
 
-  executed () {
-    return this.knex(this.tableName).orderBy('id', 'asc').pluck('name')
+  // method required by Umzug
+  executed() {
+    return this.migrations().pluck('name')
   }
 
-  getCurrentBatch () {
-    return this.knex(this.tableName)
+  currentBatch() {
+    return this._query()
       .max('batch as max_batch')
       .then(obj => obj[0].max_batch || 0)
+  }
+
+  /**
+   * A naive implementation without any caching or optimizations.
+   * We need to handle baselines and migrations separately, as we can baseline
+   * with an older schema ver than our current migration actually is.
+   *
+   * @returns migration obj or undefined if no migrations were previously run
+   */
+  currentVersion() {
+    return Promise.all([
+      this.lastMigration('migration'),
+      this.lastMigration('baseline'),
+    ]).then(migrations => {
+      return _.maxBy(_.compact(_.flatten(migrations)), 'name')
+    })
+  }
+
+  lastMigration(type='migration') {
+    return this._query()
+      .where({type}).orderBy('id', 'desc').limit(1)
+      .then(m => m[0])
+  }
+
+  compareVersions(m1, m2) {
+    return m1.name > m2.name ? 1
+         : m1.name < m2.name ? -1
+         : 0
   }
 }

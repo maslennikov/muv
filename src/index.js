@@ -10,15 +10,16 @@ export default class Migrator {
   constructor(options) {
     this.options = this._normalizedOptions(options)
 
-    this._knex = this._initKnex()
+    this._connection = this._initConnection()
     this._umzug = this._initUmzug()
+    this._storage = this._umzug.storage
   }
 
   init() {
-    return this._umzug.storage.ensureTable()
+    return this._umzug.storage.init()
   }
 
-  _initKnex() {
+  _initConnection() {
     const knex = reqFrom.silent(this.options.cwd, 'knex')
     if (_.isNil(knex)) {
       throw new Error(
@@ -31,12 +32,12 @@ export default class Migrator {
 
   _initUmzug() {
     return new Umzug({
-      storage: resolve(__dirname, 'storage'),
-      storageOptions: {connection: this._knex},
+      storage: this.options.storage,
+      storageOptions: {connection: this._connection},
       migrations: {
-        params: [this._knex, Promise],
+        params: [this._connection, Promise],
         path: this.options.migrations,
-        pattern: /^\d+[\w-_]+\.js$/,
+        pattern: /^\d+_[\w-_]+\.js$/,
         wrap: fn => (knex, Promise) =>
           knex.transaction(tx => Promise.resolve(fn(tx, Promise)))
       }
@@ -47,6 +48,7 @@ export default class Migrator {
     var options = {
       knexfile: 'knexfile.js',
       migrations: 'migrations',
+      storage: resolve(__dirname, 'storage'),
       env: process.env.KNEX_ENV || process.env.NODE_ENV || 'development',
       ...raw
     }

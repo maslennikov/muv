@@ -141,7 +141,7 @@ function createApi (stdout, migrator) {
 
   const api = {
     history: () => {
-      return migrator._umzug.storage.executed().then(lines => {
+      return migrator._storage.executed().then(lines => {
         stdout.write(`${lines.join('\n')}\n`)
       })
     },
@@ -151,12 +151,12 @@ function createApi (stdout, migrator) {
       })
     },
     rollback: async () => {
-      return migrator._umzug.storage.migrations().then(async migrations => {
+      return migrator._storage.migrations().then(async migrations => {
         if (migrations.length === 0) {
           return null
         }
 
-        const maxBatch = _.maxBy(migrations, 'batch').batchb
+        const maxBatch = _.maxBy(migrations, 'batch').batch
         const lastBatch = _.filter(migrations, {batch: maxBatch})
         const firstFromBatch = _.minBy(lastBatch, 'migration_time')
 
