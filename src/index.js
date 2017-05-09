@@ -106,7 +106,9 @@ export default class Migrator {
     }
 
     options.migrations = resolve(options.cwd,
-      options.migrations || _.get(options.knex, 'migrations.directory'))
+      raw.migrations
+        || _.get(options.knex, 'migrations.directory')
+        || options.migrations)
 
     if (!existsSync(options.migrations)) {
       throw new Error(

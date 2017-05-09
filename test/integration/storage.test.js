@@ -7,7 +7,7 @@ describe('Storage', function() {
   const connection = knex({
     client: 'sqlite3',
     connection: {
-      filename: resolve(__dirname, 'storage.test.db')
+      filename: resolve(__dirname, 'storage.test.sqlite3')
     }
   })
   var storage

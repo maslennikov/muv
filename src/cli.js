@@ -47,7 +47,8 @@ const cli = meow(
     alias: {
       to: 't',
       from: 'f',
-      only: 'o'
+      only: 'o',
+      verbose: 'v'
     },
     string: ['to', 'from', 'only']
   }
@@ -76,7 +77,9 @@ async function main () {
   const migrator = new Migrator(flags)
 
   if (migrator.options.verbose) {
+    console.log('======');
     console.log(prettyjson.render(migrator.options, {noColor: true}))
+    console.log('======\n');
   }
 
   await migrator.init()
