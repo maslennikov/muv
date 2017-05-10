@@ -59,10 +59,9 @@ main().then(
     process.exit(0)
   },
   err => {
+    console.error('Migration error occurred:', err.message)
     if (cli.flags.verbose) {
       console.error(err.stack)
-    } else {
-      console.error(err.message)
     }
     process.exit(1)
   }
@@ -77,6 +76,7 @@ async function main () {
   const migrator = new Migrator(flags)
 
   if (migrator.options.verbose) {
+    console.log('Created migrator with environment:');
     console.log('======');
     console.log(prettyjson.render(migrator.options, {noColor: true}))
     console.log('======\n');
