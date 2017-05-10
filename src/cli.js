@@ -15,14 +15,19 @@ const cli = meow(
   Commands
     schema-version Shows current schema and baseline version
     pending        Lists all pending migrations
-    list           Lists all executed migrations
+    log            Lists all executed migrations since baseline
+    baseline       Move baseline to a specified migration
     up             Performs all pending migrations
     down           Rollbacks last migration
-    rollback       Rollbacks last batch of migrations
+    rollback       Rollbacks last batch of upward changes: migrations or baseline
     redo           Rollbacks last batch and performs all migrations
 
   Options for "up" and "down":
-    --to, -t    Migrate upto (downto) specific version
+    up --to, -t <name>      Migrate upto specific version
+    down --to, -t <name|0>  Migrate downto specific version or baseline if 0
+
+  Options for "baseline:
+    <name>  Move baseline to a specified version
 
   Global options:
     --cwd         Specify the working directory
@@ -31,12 +36,10 @@ const cli = meow(
     --env         Specify environment ($KNEX_ENV || $NODE_ENV || 'development')
     --verbose     Be more verbose
 
-  As a convenience, you can skip --to flag, and just provide migration name.
-
   Examples
     $ muv up                  # migrate everytings
     $ muv up --to 20160905    # the same as above
-    $ muv down --to 0         # rollback all migrations
+    $ muv down --to 0         # rollback all migrations (downto baseline)
     $ muv down                # rollback single migration
     $ muv rollback            # rollback previous "up"
     $ muv redo --verbose      # rollback and migrate everything
@@ -55,7 +58,7 @@ main().then(
     process.exit(0)
   },
   err => {
-    console.error('Migration error occurred:', err.message)
+    console.error('Migration error:', err.message)
     if (cli.flags.verbose) {
       console.error(err.stack)
     }
@@ -64,7 +67,7 @@ main().then(
 )
 
 async function main () {
-  if (cli.input.length < 1 && !cli.flags.list) {
+  if (cli.input.length < 1) {
     help()
   }
 
@@ -87,11 +90,16 @@ async function main () {
   case 'schema-version':
     await api.schemaVersion()
     break
-  case 'list':
+  case 'log':
     await api.executed()
     break
   case 'pending':
     await api.pending()
+    break
+  case 'baseline':
+    if (!cli.input[1]) return help()
+    await api.baseline(cli.input[1])
+    await api.schemaVersion()
     break
   case 'up':
     await api.up(flags.to)
@@ -123,6 +131,7 @@ function createApi (stdout, migrator) {
     .on('debug', printer('debug'))
 
   const api = {
+
     schemaVersion: async () => {
       const [v, b] = await Promise.all([
         migrator.currentVersion(),
@@ -130,15 +139,42 @@ function createApi (stdout, migrator) {
       ])
       print(`Schema version ${v || '0'} ${b ? `(baseline ${b})` : ''}`)
     },
+
     executed: async () => {
-      const m = await migrator.executed('migration')
-      print(`${m.join('\n')}`)
+      const verbose = migrator.options.verbose
+      var [above, below, base] = await Promise.all([
+        migrator.executed(),
+        migrator.executed(false),
+        migrator.currentBaseline()
+      ])
+      below = verbose ? below : []
+      base = base ? ['------', `Baseline: ${base}`, '------'] : []
+
+      print(`${below.concat(base).concat(above).join('\n')}`)
     },
+
     pending: async () => {
       const m = await migrator.pending()
       print(`Pending ${m.length} migration${m.length == 1 ? '' : 's'}`)
       print(`${m.join('\n')}`)
     },
+
+    baseline: async (name) => {
+      const b = await migrator.currentBaseline()
+      print(`Moving baseline ${b || 0} .. ${name}`)
+      await migrator.baseline(name)
+      print(`✓ ok`)
+    },
+
+    up: async (to) => {
+      await migrator.up(to)
+      print(`✓ ok`)
+    },
+
+    down: async (to) => {
+      await migrator.down(to)
+      print(`✓ ok`)
+    }
     // rollback: async () => {
     //   return migrator._storage.migrations().then(async migrations => {
     //     if (migrations.length === 0) {
@@ -156,10 +192,7 @@ function createApi (stdout, migrator) {
     //   await api.rollback()
     //   await api.up()
     // },
-    up: async (to) => {
-      await migrator.up(to)
-      print(`✓ ok`)
-    }
+
   }
 
   return api

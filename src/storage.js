@@ -2,7 +2,30 @@ import invariant from 'invariant'
 import _ from 'lodash'
 
 
-module.exports = class KnexStorage {
+class KnexStorage {
+
+  static compareVersions(m1={name: ''}, m2={name: ''}) {
+    m1 = _.isString(m1) ? {name: m1} : m1
+    m2 = _.isString(m2) ? {name: m2} : m2
+
+    return m1.name > m2.name ? 1
+         : m1.name < m2.name ? -1
+         : 0
+  }
+
+  static versionHigher(of, than, orEqual) {
+    return orEqual
+      ? (KnexStorage.compareVersions(of, than) >= 0)
+      : (KnexStorage.compareVersions(of, than) > 0)
+  }
+
+  static versionLower(of, than, orEqual) {
+    return orEqual
+      ? (KnexStorage.compareVersions(of, than) <= 0)
+      : (KnexStorage.compareVersions(of, than) < 0)
+  }
+
+
   constructor (options) {
     this.knex = options.storageOptions.connection
     this.tableName = _.get(
@@ -79,7 +102,7 @@ module.exports = class KnexStorage {
       this.lastMigration('migration'),
       this.lastMigration('baseline'),
     ]).then(migrations => {
-      return _.last(_.compact(migrations).sort(this.compareVersions))
+      return _.last(_.compact(migrations).sort(KnexStorage.compareVersions))
     })
   }
 
@@ -89,12 +112,17 @@ module.exports = class KnexStorage {
       .then(m => m[0])
   }
 
-  compareVersions(m1={name: ''}, m2={name: ''}) {
-    m1 = _.isString(m1) ? {name: m1} : m1
-    m2 = _.isString(m2) ? {name: m2} : m2
+  compareVersions(...args) {
+    return KnexStorage.compareVersions(...args)
+  }
 
-    return m1.name > m2.name ? 1
-         : m1.name < m2.name ? -1
-         : 0
+  versionHigher(...args) {
+    return KnexStorage.versionHigher(...args)
+  }
+
+  versionLower(...args) {
+    return KnexStorage.versionLower(...args)
   }
 }
+
+module.exports = KnexStorage

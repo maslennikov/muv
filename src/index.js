@@ -1,3 +1,4 @@
+import assert from 'invariant'
 import {resolve, dirname, isAbsolute} from 'path'
 import {existsSync} from 'fs'
 import reqFrom from 'req-from'
@@ -19,6 +20,20 @@ export default class Migrator {
     return this._umzug.storage.init()
   }
 
+  async baseline(name) {
+    const [base, migration] = await Promise.all([
+      this.currentBaseline(),
+      this._umzug._findMigration(name)
+    ])
+    assert(this._storage.versionHigher(migration.file, base),
+      `New baseline (${migration.file}) must be higher than current (${base})`)
+
+    return this._storage.logMigration(migration.file, 'baseline')
+  }
+
+  /**
+   * @param to name of migration to stop migration after
+   */
   async up(to) {
     var pending = await this.pending()
     pending = sliceTo(pending, to)
@@ -32,13 +47,17 @@ export default class Migrator {
     function sliceTo(list, to) {
       if (!to) return list
       const idx = list.indexOf(to)
-      if (idx < 0) throw new Error(`No migration with name "${to}" pending`)
+      assert(idx >= 0, `No migration with name "${to}" pending`)
       return list.slice(0, idx + 1)
     }
   }
 
+  async down(to) {
+    // var executed = await this.executed()
+  }
+
   /**
-   * @returns {Promise.<String[]>} migration names that will run upon 'up' call
+   * @returns list of migration names that will run upon 'up' call
    */
   async pending() {
     var [pending, current, baseline] = await Promise.all([
@@ -48,14 +67,10 @@ export default class Migrator {
     ])
 
     pending = _.map(pending, m => ({name: m.file}))
-
     //dropping those below baseline
-    pending = _.filter(pending, m => this._storage.compareVersions(m, baseline) > 0)
-
-    //integrity check
-    if (_.some(pending, m => this._storage.compareVersions(m, current) <= 0)) {
-      throw new Error(`Pending migrations must be higher than ${current}`)
-    }
+    pending = _.filter(pending, m => this._storage.versionHigher(m, baseline))
+    assert(_.every(pending, m => this._storage.versionHigher(m, current)),
+      `Pending migrations must be higher than ${current}`)
 
     return _.map(pending, 'name')
   }
@@ -70,19 +85,30 @@ export default class Migrator {
     return _.get(migration, 'name')
   }
 
-  async executed(type='migration') {
-    return this._storage.migrations(type).then(
-      migrations => _.map(migrations, 'name'))
+  /**
+   * @returns a list of all migrations above (revertible=true) or below
+   * (revertible=false) current baseline
+   */
+  async executed(revertible=true) {
+    var [migrations, baseline] = await Promise.all([
+      this._storage.migrations('migration'),
+      this._storage.lastMigration('baseline')
+    ])
+
+    migrations = _.filter(migrations, m => {
+      return revertible
+        ? this._storage.versionHigher(m, baseline)
+        : this._storage.versionLower(m, baseline, 'orEqual')
+    })
+    return _.map(migrations, 'name')
   }
 
   _initConnection() {
     const knex = reqFrom.silent(this.options.cwd, 'knex')
-    if (_.isNil(knex)) {
-      throw new Error(
-        `Knex not found in '${this.options.cwd}'
-         Please install it as local dependency with 'npm install --save knex'
-        `)
-    }
+    assert(knex,
+      `Knex not found in '${this.options.cwd}'
+       Please install it as local dependency with 'npm install --save knex'
+      `)
     return knex(this.options.knex)
   }
 
@@ -130,25 +156,20 @@ export default class Migrator {
     }
 
     options.knex = options.knex[options.env] || options.knex
-
-    if (typeof options.knex !== 'object') {
-      throw new Error(
-        `Malformed knexfile.js:
-         ${JSON.stringify(options.knex, null, 2)}
-        `)
-    }
+    assert(_.isObject(options.knex),
+      `Malformed knexfile.js:
+       ${JSON.stringify(options.knex, null, 2)}
+      `)
 
     options.migrations = resolve(options.cwd,
       raw.migrations
         || _.get(options.knex, 'migrations.directory')
         || options.migrations)
 
-    if (!existsSync(options.migrations)) {
-      throw new Error(
-        `No migrations directory at '${options.migrations}'
-         Please create your first migration with 'knex migrate:make <name>'
-        `)
-    }
+    assert(existsSync(options.migrations),
+      `No migrations directory at '${options.migrations}'
+       Please create your first migration with 'knex migrate:make <name>'
+      `)
 
     return options
   }
