@@ -83,7 +83,7 @@ class KnexStorage {
 
   // method required by Umzug
   executed() {
-    return this.migrations().pluck('name')
+    return this.logged().pluck('name')
   }
 
   currentBatch() {
