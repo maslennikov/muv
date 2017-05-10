@@ -19,6 +19,16 @@ export default class Migrator {
     return this._umzug.storage.init()
   }
 
+  async up() {
+    var pending = await this.pending()
+    if (!pending.length) return [];
+
+    return this._umzug.execute({
+      method: 'up',
+      migrations: pending
+    })
+  }
+
   /**
    * @returns {Promise.<String[]>} migration names that will run upon 'up' call
    */

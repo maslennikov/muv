@@ -88,20 +88,21 @@ async function main () {
   const command = cli.input[0]
 
   switch (command) {
-    case 'schema-version':
-      await api.schemaVersion()
-      break
-    case 'list':
-      await api.history()
-      break
-    case 'pending':
-      await api.pending()
-      break
+  case 'schema-version':
+    await api.schemaVersion()
+    break
+  case 'list':
+    await api.history()
+    break
+  case 'pending':
+    await api.pending()
+    break
+  case 'up':
+    await api.up()
+    await api.schemaVersion()
+    break
     // case 'down':
     //   await api.down()
-    //   break
-    // case 'up':
-    //   await api.up()
     //   break
     // case 'rollback':
     //   await api.rollback()
@@ -109,8 +110,8 @@ async function main () {
     // case 'redo':
     //   await api.redo()
     //   break
-    default:
-      console.log(cli.help)
+  default:
+    console.log(cli.help)
   }
 }
 
@@ -147,51 +148,43 @@ function createApi (stdout, migrator) {
     .on('debug', printer('debug'))
 
   const api = {
-    schemaVersion: () => {
-      return Promise.all([
+    schemaVersion: async () => {
+      const [v, b] = await Promise.all([
         migrator.currentVersion(),
         migrator.currentBaseline()
-      ]).then(([v, b]) => {
-        print(`Schema version ${v || '0'} ${b ? `(baseline ${b})` : ''}`)
-      })
+      ])
+      print(`Schema version ${v || '0'} ${b ? `(baseline ${b})` : ''}`)
     },
-    history: () => {
-      return migrator.executed('migration').then(lines => {
-        print(`${lines.join('\n')}`)
-      })
+    history: async () => {
+      const m = await migrator.executed('migration')
+      print(`${m.join('\n')}`)
     },
-    pending: () => {
-      return migrator.pending()
-        .then(migrations => print(`${migrations.join('\n')}`))
+    pending: async () => {
+      const m = await migrator.pending()
+      print(`Pending ${m.length} migration${m.length == 1 ? '' : 's'}`)
+      print(`${m.join('\n')}`)
     },
-    rollback: async () => {
-      return migrator._storage.migrations().then(async migrations => {
-        if (migrations.length === 0) {
-          return null
-        }
+    // rollback: async () => {
+    //   return migrator._storage.migrations().then(async migrations => {
+    //     if (migrations.length === 0) {
+    //       return null
+    //     }
 
-        const maxBatch = _.maxBy(migrations, 'batch').batch
-        const lastBatch = _.filter(migrations, {batch: maxBatch})
-        const firstFromBatch = _.minBy(lastBatch, 'migration_time')
+    //     const maxBatch = _.maxBy(migrations, 'batch').batch
+    //     const lastBatch = _.filter(migrations, {batch: maxBatch})
+    //     const firstFromBatch = _.minBy(lastBatch, 'migration_time')
 
-        return updown(stdout, migrator, 'down')({to: firstFromBatch.name})
-      })
-    },
-    redo: async () => {
-      await api.rollback()
-      await api.up()
-    },
-    up: updown(stdout, migrator, 'up'),
-    down: updown(stdout, migrator, 'down')
+    //     return updown(stdout, migrator, 'down')({to: firstFromBatch.name})
+    //   })
+    // },
+    // redo: async () => {
+    //   await api.rollback()
+    //   await api.up()
+    // },
+    up: () => migrator.up()
   }
 
   return api
-}
-
-function updown (stdout, migrator, type) {
-  return migrator._umzug[type](_.omitBy(_.pick(
-    migrator.options, 'to', 'from'
-  ), _.isNil))
 }
 
 function printerFactory (stdout) {
