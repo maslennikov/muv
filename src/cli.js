@@ -13,16 +13,16 @@ const cli = meow(
     $ muv <command> [options]
 
   Commands
-    pending   Lists all pending migrations
-    list      Lists all executed migrations
-    up        Performs all pending migrations
-    down      Rollbacks last migration
-    rollback  Rollbacks last batch of migrations
-    redo      Rollbacks last batch and performs all migrations
+    schema-version Shows current schema and baseline version
+    pending        Lists all pending migrations
+    list           Lists all executed migrations
+    up             Performs all pending migrations
+    down           Rollbacks last migration
+    rollback       Rollbacks last batch of migrations
+    redo           Rollbacks last batch and performs all migrations
 
   Options for "up" and "down":
     --to, -t    Migrate upto (downto) specific version
-    --from, -f  Start migration from specific version
 
   Global options:
     --cwd         Specify the working directory
@@ -35,9 +35,7 @@ const cli = meow(
 
   Examples
     $ muv up                  # migrate everytings
-    $ muv up 20160905         # migrate upto given migration name
     $ muv up --to 20160905    # the same as above
-    $ muv up --only 201609085 # migrate up single migration
     $ muv down --to 0         # rollback all migrations
     $ muv down                # rollback single migration
     $ muv rollback            # rollback previous "up"
@@ -46,11 +44,9 @@ const cli = meow(
   {
     alias: {
       to: 't',
-      from: 'f',
-      only: 'o',
       verbose: 'v'
     },
-    string: ['to', 'from', 'only']
+    string: ['to']
   }
 )
 
@@ -92,18 +88,20 @@ async function main () {
     await api.schemaVersion()
     break
   case 'list':
-    await api.history()
+    await api.executed()
     break
   case 'pending':
     await api.pending()
     break
   case 'up':
-    await api.up()
+    await api.up(flags.to)
+    await api.schemaVersion()
+    await api.pending()
+    break
+  case 'down':
+    await api.down()
     await api.schemaVersion()
     break
-    // case 'down':
-    //   await api.down()
-    //   break
     // case 'rollback':
     //   await api.rollback()
     //   break
@@ -113,29 +111,6 @@ async function main () {
   default:
     console.log(cli.help)
   }
-}
-
-function normalizedFlags({flags, input}) {
-  var normalized = {...flags}
-
-  if (_.isNil(flags.to) && !_.isNil(input[1])) {
-    normalized.to = cli.input[1]
-  }
-
-  if (flags.to === '0') {
-    normalized.to = 0
-  }
-
-  if (flags.from === '0') {
-    normalized.from = 0
-  }
-
-  return normalized
-}
-
-function help () {
-  console.log(cli.help)
-  process.exit(1)
 }
 
 function createApi (stdout, migrator) {
@@ -155,7 +130,7 @@ function createApi (stdout, migrator) {
       ])
       print(`Schema version ${v || '0'} ${b ? `(baseline ${b})` : ''}`)
     },
-    history: async () => {
+    executed: async () => {
       const m = await migrator.executed('migration')
       print(`${m.join('\n')}`)
     },
@@ -181,7 +156,10 @@ function createApi (stdout, migrator) {
     //   await api.rollback()
     //   await api.up()
     // },
-    up: () => migrator.up()
+    up: async (to) => {
+      await migrator.up(to)
+      print(`✓ ok`)
+    }
   }
 
   return api
@@ -199,4 +177,19 @@ function printerFactory (stdout) {
       }
     }
   }
+}
+
+function normalizedFlags({flags, input}) {
+  var normalized = {...flags}
+
+  if (flags.to === '0') {
+    normalized.to = 0
+  }
+
+  return normalized
+}
+
+function help () {
+  console.log(cli.help)
+  process.exit(1)
 }

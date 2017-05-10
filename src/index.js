@@ -19,14 +19,22 @@ export default class Migrator {
     return this._umzug.storage.init()
   }
 
-  async up() {
+  async up(to) {
     var pending = await this.pending()
+    pending = sliceTo(pending, to)
     if (!pending.length) return [];
 
     return this._umzug.execute({
       method: 'up',
       migrations: pending
     })
+
+    function sliceTo(list, to) {
+      if (!to) return list
+      const idx = list.indexOf(to)
+      if (idx < 0) throw new Error(`No migration with name "${to}" pending`)
+      return list.slice(0, idx + 1)
+    }
   }
 
   /**
