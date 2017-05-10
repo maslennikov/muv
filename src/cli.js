@@ -18,17 +18,14 @@ const cli = meow(
     baseline       Move baseline to a specified migration
     up             Performs all pending migrations
     down           Rollbacks last migration
-    rollback       Rollbacks last batch of upward changes: migrations or baseline
 
   Options for "up" and "down":
     up --to, -t <name>      Migrate upto specific version
-    down --to, -t <name|0>  Migrate downto specific version or baseline if 0
-
-  Options for "up", "down", and "rollback":
+    down --to, -t <name|0>  Migrate downto specific version or to baseline if 0
     --dry-run, d            Only show list of potential changes without exeuting
 
   Options for "baseline:
-    <name>  Move baseline to a specified version
+    baseline <name>  Move baseline to a specified version
 
   Global options:
     --cwd         Specify the working directory
@@ -173,20 +170,6 @@ function createApi (stdout, migrator) {
         print(`✓ ok`)
       }
     }
-
-    // rollback: async () => {
-    //   return migrator._storage.migrations().then(async migrations => {
-    //     if (migrations.length === 0) {
-    //       return null
-    //     }
-
-    //     const maxBatch = _.maxBy(migrations, 'batch').batch
-    //     const lastBatch = _.filter(migrations, {batch: maxBatch})
-    //     const firstFromBatch = _.minBy(lastBatch, 'migration_time')
-
-    //     return updown(stdout, migrator, 'down')({to: firstFromBatch.name})
-    //   })
-    // },
   }
 
   return api

@@ -102,22 +102,30 @@ describe('Storage', function() {
   })
 
   describe('Queries past migrations', function() {
+    const logged = [
+      ['01_m'],
+      ['02_m'],
+      ['03_b', 'baseline'],
+      ['04_m'],
+      ['06_m'],
+      ['05_b', 'baseline']
+    ]
 
     beforeEach(async function() {
-      await storage.logMigration('01_m')
-      await storage.logMigration('02_m')
-      await storage.logMigration('03_b', 'baseline')
-      await storage.logMigration('04_m')
-      await storage.logMigration('06_m')
-      await storage.logMigration('05_b', 'baseline')
+      await logged.reduce(
+        (p, m) => p.then(() => storage.logMigration(...m)),
+        Promise.resolve())
     })
 
-    it('Returns past migrations by type', async function() {
-      var migrations = await storage.migrations()
+    it('Returns logged migrations by type', async function() {
+      var migrations = await storage.logged()
       expect(_.map(migrations, 'name')).to.eql(['01_m', '02_m', '04_m', '06_m'])
 
-      var baselines = await storage.migrations('baseline')
+      var baselines = await storage.logged('baseline')
       expect(_.map(baselines, 'name')).to.eql(['03_b', '05_b'])
+
+      var all = await storage.logged('all')
+      expect(_.map(all, 'name')).to.eql(_.map(logged, _.first))
     })
 
     it('Returns schema version according to baseline and migration', async function() {

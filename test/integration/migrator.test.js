@@ -68,7 +68,7 @@ describe('Migrator', function() {
       var migrator = new MockMigrator({
         storage: {
           lastMigration: async () => baseline && {name: baseline},
-          migrations: async () => _.map(logged, name => ({name})),
+          logged: async () => _.map(logged, name => ({name})),
           compareVersions: Storage.prototype.compareVersions,
           versionHigher: Storage.prototype.versionHigher,
           versionLower: Storage.prototype.versionLower

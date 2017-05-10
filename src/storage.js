@@ -75,8 +75,10 @@ class KnexStorage {
     return this._query().where({type: 'migration', name}).del()
   }
 
-  migrations(type='migration') {
-    return this._query().where({type}).orderBy('id', 'asc')
+  logged(type='migration') {
+    return type == 'all'
+      ? this._query().orderBy('id', 'asc')
+      : this._query().where({type}).orderBy('id', 'asc')
   }
 
   // method required by Umzug

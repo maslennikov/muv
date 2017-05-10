@@ -110,7 +110,7 @@ export default class Migrator {
    */
   async executed(revertible=true) {
     var [migrations, baseline] = await Promise.all([
-      this._storage.migrations('migration'),
+      this._storage.logged('migration'),
       this._storage.lastMigration('baseline')
     ])
 
