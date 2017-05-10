@@ -14,7 +14,6 @@ const cli = meow(
 
   Commands
     schema-version Shows current schema and baseline version
-    pending        Lists all pending migrations
     log            Lists all executed migrations since baseline
     baseline       Move baseline to a specified migration
     up             Performs all pending migrations
@@ -24,6 +23,9 @@ const cli = meow(
   Options for "up" and "down":
     up --to, -t <name>      Migrate upto specific version
     down --to, -t <name|0>  Migrate downto specific version or baseline if 0
+
+  Options for "up", "down", and "rollback":
+    --dry-run, d            Only show list of potential changes without exeuting
 
   Options for "baseline:
     <name>  Move baseline to a specified version
@@ -45,7 +47,8 @@ const cli = meow(
   {
     alias: {
       to: 't',
-      verbose: 'v'
+      verbose: 'v',
+      dryRun: 'd'
     },
     string: ['to']
   }
@@ -90,23 +93,18 @@ async function main () {
   case 'log':
     await api.executed()
     break
-  case 'pending':
-    await api.pending()
-    break
   case 'baseline':
     if (!cli.input[1]) return help()
     await api.baseline(cli.input[1])
     await api.schemaVersion()
     break
   case 'up':
-    await api.up(cli.flags.to)
-    await api.schemaVersion()
-    await api.pending()
-    break
   case 'down':
-    await api.down(cli.flags.to)
-    await api.schemaVersion()
-    await api.pending()
+    await api.updown(command, cli.flags.to, cli.flags.dryRun)
+    if (!cli.flags.dryRun) {
+      await api.schemaVersion()
+      await api.pending()
+    }
     break
     // case 'rollback':
     //   await api.rollback()
@@ -124,8 +122,8 @@ function createApi (stdout, migrator) {
   const print = printer()
 
   migrator._umzug
-    .on('migrating', printer('migrate'))
-    .on('reverting', printer('revert'))
+    .on('migrating', printer('up'))
+    .on('reverting', printer('down'))
     .on('debug', printer('debug'))
 
   const api = {
@@ -164,15 +162,18 @@ function createApi (stdout, migrator) {
       print(`✓ ok`)
     },
 
-    up: async (to) => {
-      await migrator.up(to)
-      print(`✓ ok`)
-    },
-
-    down: async (to) => {
-      await migrator.down(to)
-      print(`✓ ok`)
+    updown: async (direction, to, dry) => {
+      if (dry) {
+        print(`Dry run for "${direction.toUpperCase()}":`)
+        const method = direction == 'up' ? '_uppable' : '_downable'
+        const migrations = await migrator[method](to)
+        _.forEach(migrations, printer(direction))
+      } else {
+        await migrator[direction](to)
+        print(`✓ ok`)
+      }
     }
+
     // rollback: async () => {
     //   return migrator._storage.migrations().then(async migrations => {
     //     if (migrations.length === 0) {
@@ -194,10 +195,10 @@ function createApi (stdout, migrator) {
 function printerFactory (stdout) {
   return function debug (type) {
     return function (message) {
-      if (type === 'migrate') {
-        stdout.write(`↑ ${message} ...\n`)
-      } else if (type === 'revert') {
-        stdout.write(`↓ ${message} ...\n`)
+      if (type === 'up') {
+        stdout.write(`↑ ${message}\n`)
+      } else if (type === 'down') {
+        stdout.write(`↓ ${message}\n`)
       } else {
         stdout.write(`${message}\n`)
       }
