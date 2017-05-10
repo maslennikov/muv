@@ -3,7 +3,6 @@
 import meow from 'meow'
 import _ from 'lodash'
 import * as prettyjson from 'prettyjson'
-import Promise from 'bluebird'
 import Migrator from '.'
 
 
@@ -18,6 +17,7 @@ const cli = meow(
     baseline       Move baseline to a specified migration
     up             Performs all pending migrations
     down           Rollbacks last migration
+    make           Makes a migration with a given name
 
   Options for "up" and "down":
     up --to, -t <name>      Migrate upto specific version
@@ -26,6 +26,9 @@ const cli = meow(
 
   Options for "baseline:
     baseline <name>  Move baseline to a specified version
+
+  Options for "make:
+    make <name>  Make a migration file with a given name in migrations dir
 
   Global options:
     --cwd         Specify the working directory
@@ -85,32 +88,37 @@ async function main () {
 
   switch (command) {
   case 'schema-version':
+    assertArgs(!cli.input[1])
     await api.schemaVersion()
     break
   case 'log':
+    assertArgs(!cli.input[1])
     await api.executed()
     break
   case 'baseline':
-    if (!cli.input[1]) return help()
+    assertArgs(cli.input[1])
     await api.baseline(cli.input[1])
     await api.schemaVersion()
     break
   case 'up':
   case 'down':
+    assertArgs(!cli.input[1])
     await api.updown(command, cli.flags.to, cli.flags.dryRun)
     if (!cli.flags.dryRun) {
       await api.schemaVersion()
       await api.pending()
     }
     break
-    // case 'rollback':
-    //   await api.rollback()
-    //   break
-    // case 'redo':
-    //   await api.redo()
-    //   break
+  case 'make':
+    assertArgs(cli.input[1])
+    await api.make(cli.input[1])
+    break
   default:
     console.log(cli.help)
+  }
+
+  function assertArgs(condition) {
+    if (!condition) help()
   }
 }
 
@@ -169,6 +177,11 @@ function createApi (stdout, migrator) {
         await migrator[direction](to)
         print(`✓ ok`)
       }
+    },
+
+    make: async (name) => {
+      var filename = await migrator.make(name)
+      print(`Created migration file ${filename}`)
     }
   }
 

@@ -122,6 +122,11 @@ export default class Migrator {
     return _.map(migrations, 'name')
   }
 
+  async make(name) {
+    //assuming connection is a knex instance
+    return this._connection.migrate.make(name)
+  }
+
   _initConnection() {
     const knex = reqFrom.silent(this.options.cwd, 'knex')
     assert(knex,
