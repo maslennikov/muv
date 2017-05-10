@@ -35,14 +35,14 @@ export default class Migrator {
    * @param to name of migration to stop migration after
    */
   async up(to) {
-    var pending = await this.pending()
-    pending = sliceTo(pending, to)
-    if (!pending.length) return [];
+    var migrations = await this._uppable(to)
+    if (!migrations.length) return [];
+    return this._umzug.execute({method: 'up', migrations})
+  }
 
-    return this._umzug.execute({
-      method: 'up',
-      migrations: pending
-    })
+  async _uppable(to) {
+    var pending = await this.pending()
+    return sliceTo(pending, to)
 
     function sliceTo(list, to) {
       if (!to) return list
@@ -53,7 +53,22 @@ export default class Migrator {
   }
 
   async down(to) {
-    // var executed = await this.executed()
+    var migrations = await this._downable(to)
+    if (!migrations.length) return [];
+    return this._umzug.execute({method: 'down', migrations})
+  }
+
+  async _downable(to) {
+    var revertible = await this.executed()
+    return sliceTo(_.reverse([].concat(revertible)), to)
+
+    function sliceTo(list, to) {
+      if (!to) return list.slice(0, 1)
+      if (to == '0') return list
+      const idx = list.indexOf(to)
+      assert(idx >= 0, `No executed migration with name "${to}" above baseline`)
+      return list.slice(0, idx)
+    }
   }
 
   /**

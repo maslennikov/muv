@@ -71,8 +71,7 @@ async function main () {
     help()
   }
 
-  const flags = normalizedFlags(cli)
-  const migrator = new Migrator(flags)
+  const migrator = new Migrator(cli.flags)
 
   if (migrator.options.verbose) {
     console.log('Created migrator with environment:');
@@ -102,13 +101,14 @@ async function main () {
     await api.schemaVersion()
     break
   case 'up':
-    await api.up(flags.to)
+    await api.up(cli.flags.to)
     await api.schemaVersion()
     await api.pending()
     break
   case 'down':
-    await api.down()
+    await api.down(cli.flags.to)
     await api.schemaVersion()
+    await api.pending()
     break
     // case 'rollback':
     //   await api.rollback()
@@ -202,24 +202,14 @@ function printerFactory (stdout) {
   return function debug (type) {
     return function (message) {
       if (type === 'migrate') {
-        stdout.write(`↑ ${message}...\n`)
+        stdout.write(`↑ ${message} ...\n`)
       } else if (type === 'revert') {
-        stdout.write(`↓ ${message}...\n`)
+        stdout.write(`↓ ${message} ...\n`)
       } else {
         stdout.write(`${message}\n`)
       }
     }
   }
-}
-
-function normalizedFlags({flags, input}) {
-  var normalized = {...flags}
-
-  if (flags.to === '0') {
-    normalized.to = 0
-  }
-
-  return normalized
 }
 
 function help () {

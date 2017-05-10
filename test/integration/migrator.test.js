@@ -107,4 +107,58 @@ describe('Migrator', function() {
       expect(migrations).to.eql(logged)
     })
   })
+
+  describe('#_uppable', function() {
+    const uppable = (pending, to) => {
+      var migrator = new MockMigrator({})
+      migrator.pending = async () => pending || []
+      return migrator._uppable(to)
+    }
+
+    it('Returns whole list when no "to" target given', async function() {
+      const pending = ['1', '2']
+      await expect(uppable([])).to.eventually.eql([])
+      await expect(uppable(pending)).to.eventually.eql(pending)
+    })
+
+    it('Slices list when a valid "to" target given', async function() {
+      const pending = ['1', '2', '3']
+      await expect(uppable(pending, '1')).to.eventually.eql(['1'])
+      await expect(uppable(pending, _.last(pending))).to.eventually.eql(pending)
+
+      await expect(uppable([], '3')).to.be.rejectedWith(/No migration with name/)
+      await expect(uppable(pending, '5')).to.be.rejectedWith(/No migration with name/)
+    })
+  })
+
+  describe('#_downable', function() {
+    const downable = (logged, to) => {
+      var migrator = new MockMigrator({})
+      migrator.executed = async () => logged || []
+      return migrator._downable(to)
+    }
+    const reversed = arr => _.reverse([].concat(arr))
+
+    it('Returns whole list when "to" target equals "0"', async function() {
+      const logged = ['1', '2', '3']
+      await expect(downable([])).to.eventually.eql([])
+      await expect(downable([], '0')).to.eventually.eql([])
+      await expect(downable(logged, '0')).to.eventually.eql(reversed(logged))
+    })
+
+    it('Returns last migration when no "to" target given', async function() {
+      const logged = ['1', '2', '3']
+      await expect(downable(logged)).to.eventually.eql([_.last(logged)])
+    })
+
+    it('Slices list when a valid "to" target given', async function() {
+      const logged = ['1', '2', '3']
+      await expect(downable(logged, '3')).to.eventually.eql([])
+      await expect(downable(logged, '2')).to.eventually.eql(['3'])
+      await expect(downable(logged, '1')).to.eventually.eql(['3', '2'])
+
+      await expect(downable([], '5')).to.be.rejectedWith(/No executed migration/)
+      await expect(downable(logged, '5')).to.be.rejectedWith(/No executed migration/)
+    })
+  })
 })
