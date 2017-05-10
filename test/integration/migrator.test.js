@@ -129,6 +129,13 @@ describe('Migrator', function() {
       await expect(uppable([], '3')).to.be.rejectedWith(/No migration with name/)
       await expect(uppable(pending, '5')).to.be.rejectedWith(/No migration with name/)
     })
+
+    it('Accepts "to" as a name prefix needle', async function() {
+      const pending = ['1a', '2b', '3c', '3d']
+      await expect(uppable(pending, '1')).to.eventually.eql(['1a'])
+      await expect(uppable(pending, '3')).to.eventually.eql(['1a', '2b', '3c'])
+      await expect(uppable(pending, '3d')).to.eventually.eql(pending)
+    })
   })
 
   describe('#_downable', function() {
@@ -159,6 +166,15 @@ describe('Migrator', function() {
 
       await expect(downable([], '5')).to.be.rejectedWith(/No executed migration/)
       await expect(downable(logged, '5')).to.be.rejectedWith(/No executed migration/)
+    })
+
+    it('Accepts "to" as a name prefix needle', async function() {
+      const logged = ['1a', '2b', '3c', '3d']
+      await expect(downable(logged, '3')).to.eventually.eql([])
+      await expect(downable(logged, '3d')).to.eventually.eql([])
+      await expect(downable(logged, '3c')).to.eventually.eql(['3d'])
+      await expect(downable(logged, '2')).to.eventually.eql(['3d', '3c'])
+      await expect(downable(logged, '1')).to.eventually.eql(['3d', '3c', '2b'])
     })
   })
 })

@@ -20,7 +20,6 @@ const cli = meow(
     up             Performs all pending migrations
     down           Rollbacks last migration
     rollback       Rollbacks last batch of upward changes: migrations or baseline
-    redo           Rollbacks last batch and performs all migrations
 
   Options for "up" and "down":
     up --to, -t <name>      Migrate upto specific version
@@ -37,12 +36,11 @@ const cli = meow(
     --verbose     Be more verbose
 
   Examples
-    $ muv up                  # migrate everytings
-    $ muv up --to 20160905    # the same as above
+    $ muv up                  # migrate everyting
+    $ muv up --to 20160905    # migrate to a given version
     $ muv down --to 0         # rollback all migrations (downto baseline)
     $ muv down                # rollback single migration
     $ muv rollback            # rollback previous "up"
-    $ muv redo --verbose      # rollback and migrate everything
  `,
   {
     alias: {
@@ -188,11 +186,6 @@ function createApi (stdout, migrator) {
     //     return updown(stdout, migrator, 'down')({to: firstFromBatch.name})
     //   })
     // },
-    // redo: async () => {
-    //   await api.rollback()
-    //   await api.up()
-    // },
-
   }
 
   return api

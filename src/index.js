@@ -21,18 +21,18 @@ export default class Migrator {
   }
 
   async baseline(name) {
-    const [base, migration] = await Promise.all([
+    const [base, newbase] = await Promise.all([
       this.currentBaseline(),
       this._umzug._findMigration(name)
     ])
-    assert(this._storage.versionHigher(migration.file, base),
-      `New baseline (${migration.file}) must be higher than current (${base})`)
+    assert(this._storage.versionHigher(newbase.file, base),
+      `New baseline (${newbase.file}) must be higher than current (${base})`)
 
-    return this._storage.logMigration(migration.file, 'baseline')
+    return this._storage.logMigration(newbase.file, 'baseline')
   }
 
   /**
-   * @param to name of migration to stop migration after
+   * @param to prefix of migration name to stop migration after
    */
   async up(to) {
     var migrations = await this._uppable(to)
@@ -44,14 +44,18 @@ export default class Migrator {
     var pending = await this.pending()
     return sliceTo(pending, to)
 
-    function sliceTo(list, to) {
-      if (!to) return list
-      const idx = list.indexOf(to)
-      assert(idx >= 0, `No migration with name "${to}" pending`)
+    function sliceTo(list, needle) {
+      if (!needle) return list
+      const idx = _.findIndex(list, m => m.indexOf(needle) === 0)
+      assert(idx >= 0, `No migration with name "${needle}" pending`)
       return list.slice(0, idx + 1)
     }
   }
 
+  /**
+   * @param to prefix of migration name to stop downgrading at (exclusive)
+   *           if '0' is provided, will downgrade all the way to the baseline
+   */
   async down(to) {
     var migrations = await this._downable(to)
     if (!migrations.length) return [];
@@ -62,11 +66,11 @@ export default class Migrator {
     var revertible = await this.executed()
     return sliceTo(_.reverse([].concat(revertible)), to)
 
-    function sliceTo(list, to) {
-      if (!to) return list.slice(0, 1)
-      if (to == '0') return list
-      const idx = list.indexOf(to)
-      assert(idx >= 0, `No executed migration with name "${to}" above baseline`)
+    function sliceTo(list, needle) {
+      if (!needle) return list.slice(0, 1)
+      if (needle == '0') return list
+      const idx = _.findIndex(list, m => m.indexOf(needle) === 0)
+      assert(idx >= 0, `No executed migration with name "${needle}" above baseline`)
       return list.slice(0, idx)
     }
   }
