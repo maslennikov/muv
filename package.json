@@ -1,6 +1,6 @@
 {
   "name": "muv",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "license": "MIT",
   "bin": "lib/cli.js",
   "author": "Alexey Maslennikov <alexey@maslennikov.me>",
