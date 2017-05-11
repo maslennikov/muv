@@ -6,7 +6,13 @@
   "author": "Alexey Maslennikov <alexey@maslennikov.me>",
   "repository": "maslennikov/muv",
   "description": "Migration toolkit for node.js with baselining and versioning integrity checks",
-  "keywords": ["migration", "database", "storage", "versioning", "baseline"],
+  "keywords": [
+    "migration",
+    "database",
+    "storage",
+    "versioning",
+    "baseline"
+  ],
   "dependencies": {
     "babel-runtime": "^6.23.0",
     "bluebird": "^3.4.6",
@@ -21,6 +27,7 @@
     "knex": "*"
   },
   "devDependencies": {
+    "babel-cli": "^6.24.1",
     "babel-core": "^6.24.1",
     "babel-plugin-transform-runtime": "^6.23.0",
     "babel-preset-es2015": "^6.24.1",
