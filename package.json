@@ -46,7 +46,8 @@
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha --compilers js:babel-core/register test/integration/bootstrap.js test/integration/*.test.js",
     "build": "run ./scripts/build",
-    "cli": "run ./scripts/cli"
+    "cli": "run ./scripts/cli",
+    "release": "run ./scripts/publish"
   },
   "babel": {
     "presets": [
